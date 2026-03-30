@@ -1,0 +1,22 @@
+# Environment secrets
+.env
+
+# Service Account & API credentials
+*.json
+
+# Database
+*.db
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+.venv/
+env/
+bin/
+lib/
+share/
+include/
