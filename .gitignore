@@ -2,7 +2,7 @@
 .env
 
 # Service Account & API credentials
-*.json
+api-client-398313-e0620396f1f6.json
 
 # Database
 *.db

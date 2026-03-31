@@ -14,8 +14,9 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "YOUR_YOUTUBE_API_KEY")
 
 # Google Sheets Configuration
-SHEET_ID = os.getenv("SHEET_ID", "YOUR_GOOGLE_SHEET_ID")
-SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE", "service_account.json")
+SHEET_ID = os.getenv('SHEET_ID', 'YOUR_GOOGLE_SHEET_ID')
+SERVICE_ACCOUNT_FILE = os.getenv('SERVICE_ACCOUNT_FILE', 'api-client-398313-e0620396f1f6.json')
+SERVICE_ACCOUNT_JSON = os.getenv('SERVICE_ACCOUNT_JSON') # Entire JSON string for deployment
 
 # Bot settings
 AUTO_DELETE_MINUTES = 10

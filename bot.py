@@ -21,23 +21,30 @@ dp = Dispatcher()
 
 # --- Helpers ---
 
-async def check_membership(user_id: int):
-    """Checks membership with database caching."""
+def get_search_keyboard():
+    """Builds the main search keyboard for verified users."""
+    builder = InlineKeyboardBuilder()
+    builder.row(types.InlineKeyboardButton(text="🐹 Daily Cipher", callback_data="search_cipher"))
+    builder.row(types.InlineKeyboardButton(text="🐹 Daily Combo", callback_data="search_combo"))
+    return builder.as_markup()
+
+async def check_membership(user_id: int, username: str = "Unknown"):
+    """Checks membership with database caching and updates username."""
     # 1. Check DB first
-    cached_status = await database.get_user_status(user_id)
-    if cached_status:
-        return True
+    db_data = await database.get_user_status(user_id)
+    if db_data and db_data[0]:  # is_joined
+        return True, db_data[1]  # Return joined status and last_search_time
     
     # 2. Check API
     try:
         member = await bot.get_chat_member(chat_id=config.CHANNEL_ID, user_id=user_id)
         is_joined = member.status in ["member", "administrator", "creator"]
         if is_joined:
-            await database.set_user_joined(user_id, True)
-        return is_joined
+            await database.set_user_joined(user_id, username, True)
+        return is_joined, None
     except Exception as e:
         logger.error(f"Error checking membership for {user_id}: {e}")
-        return False
+        return False, None
 
 # --- Persistent Deletion Task ---
 
@@ -63,42 +70,48 @@ async def deletion_loop():
 
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
-    """Professional start handler with rich formatting."""
-    is_admin = message.from_user.id in config.ADMIN_IDS
-    joined = await check_membership(message.from_user.id)
+    """Start handler following the new verification scenario."""
+    user_id = message.from_user.id
+    username = message.from_user.username or message.from_user.full_name
+    is_admin = user_id in config.ADMIN_IDS
+    joined, _ = await check_membership(user_id, username)
     
     if joined or is_admin:
-        status_text = "<b>✅ Admin Access Granted!</b>" if is_admin else "<b>✅ Access Granted!</b>"
         await message.answer(
-            f"{status_text}\n\n"
-            "You have full access to all bot features. Send a query to search YouTube."
+            f"<b>👋 Welcome back, {username}!</b>\n\n"
+            "You are verified. Use the search buttons below to find Hamster Kombat updates:",
+            reply_markup=get_search_keyboard()
         )
     else:
         builder = InlineKeyboardBuilder()
-        builder.row(types.InlineKeyboardButton(text="📢 Join Our Channel", url=config.CHANNEL_URL))
+        # User specified two channel links, using same for both as requested
+        builder.row(types.InlineKeyboardButton(text="📢 Join Channel 1", url=config.CHANNEL_URL))
+        builder.row(types.InlineKeyboardButton(text="📢 Join Channel 2", url=config.CHANNEL_URL))
         builder.row(types.InlineKeyboardButton(text="✅ Click to Verify", callback_data="verify_join"))
         
         await message.answer(
             "<b>👋 Welcome to the YouTube Archiver!</b>\n\n"
-            "To maintain our community, we require all users to join our channel first.\n\n"
-            "<i>Please join and click the button below to unlock the bot:</i>",
+            "To use this bot, please join our channels and click verify below:\n\n"
+            f"🔗 <a href='{config.CHANNEL_URL}'>Join Hamster Dev Bot</a>",
             reply_markup=builder.as_markup()
         )
 
 @dp.callback_query(F.data == "verify_join")
 async def verify_join(callback: types.CallbackQuery):
-    """Verified join callback with alert."""
-    is_admin = callback.from_user.id in config.ADMIN_IDS
-    joined = await check_membership(callback.from_user.id)
+    user_id = callback.from_user.id
+    username = callback.from_user.username or callback.from_user.full_name
+    is_admin = user_id in config.ADMIN_IDS
+    joined, _ = await check_membership(user_id, username)
     
     if joined or is_admin:
         await callback.answer("✅ Verification Successful!", show_alert=True)
         await callback.message.edit_text(
-            "<b>✅ Access Unlocked!</b>\n\n"
-            "You can now search and archive YouTube videos. Simply send a search query."
+            f"<b>✅ Welcome, {username}!</b>\n\n"
+            "Access Unlocked. Use the search buttons below to find updates:",
+            reply_markup=get_search_keyboard()
         )
     else:
-        await callback.answer("❌ Verification Failed!\n\nPlease join the channel first.", show_alert=True)
+        await callback.answer("❌ Verification Failed!\n\nPlease join both channels first.", show_alert=True)
 
 @dp.message(Command("help"))
 async def help_cmd(message: types.Message):
@@ -118,55 +131,122 @@ async def help_cmd(message: types.Message):
 @dp.message(Command("verify"))
 async def verify_cmd(message: types.Message):
     """Manual verification command."""
-    await start_cmd(message)
+    user_id = message.from_user.id
+    username = message.from_user.username or message.from_user.full_name
+    is_admin = user_id in config.ADMIN_IDS
+    joined, _ = await check_membership(user_id, username)
+    
+    if joined or is_admin:
+        await message.answer(
+            f"<b>✅ Verification Status: Verified</b>\n\n"
+            f"Welcome, {username}! Use the buttons below to find updates.",
+            reply_markup=get_search_keyboard()
+        )
+    else:
+        await start_cmd(message)
 
 @dp.message()
 async def handle_all_messages(message: types.Message):
-    """Advanced message handler with state and permissions check."""
+    """Catch-all for admin custom searches."""
     if not message.text:
         return
 
-    # 1. Enforcement: Must be joined
-    is_admin = message.from_user.id in config.ADMIN_IDS
-    if not is_admin:
-        joined = await check_membership(message.from_user.id)
+    user_id = message.from_user.id
+    username = message.from_user.username or "Unknown"
+    is_admin = user_id in config.ADMIN_IDS
+    
+    if is_admin:
+        await yt_search(message, message.text, username)
+    else:
+        # For non-admins, if they send text, guide them to buttons
+        joined, _ = await check_membership(user_id, username)
         if not joined:
             return await start_cmd(message)
-    
-    # 2. Logic: Process Admin Search
-    if is_admin:
-        # Show "Typing" or "Searching" status
-        status_msg = await message.answer("<i>🔍 Searching YouTube...</i>")
         
-        query = message.text
-        url, title = search_youtube(query)
-        
-        if not url:
-            return await status_msg.edit_text("<b>❌ No results found.</b> Try a different query.")
-
-        # Save to Google Sheets
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        sheets_saved = save_to_sheets(now, url, query, message.message_id)
-        
-        # Prepare result text
-        result_text = (
-            f"<b>📺 {title}</b>\n\n"
-            f"🔗 <a href='{url}'>Watch Now</a>\n\n"
-            f"📅 <i>Log Status: {'✅ Archived' if sheets_saved else '⚠️ Search only'}</i>\n"
-            f"⏰ <i>Deleting original in 10 minutes...</i>"
+        await message.answer(
+            "⚠️ <b>Custom search is restricted.</b>\n\n"
+            "Please use the search buttons provided above.",
+            reply_markup=get_search_keyboard()
         )
+
+
+
+@dp.callback_query(F.data.startswith("search_"))
+async def handle_search_callbacks(callback: types.CallbackQuery):
+    """Handles specific search queries from buttons and enforces cooldown."""
+    query_map = {
+        "search_cipher": "Hamster Kombat Daily Cipher",
+        "search_combo": "Hamster Kombat Daily Combo"
+    }
+    
+    query = query_map.get(callback.data)
+    if query:
+        user_id = callback.from_user.id
+        username = callback.from_user.username or "Unknown"
+        is_admin = user_id in config.ADMIN_IDS
+        joined, last_search = await check_membership(user_id, username)
         
-        await status_msg.edit_text(result_text, disable_web_page_preview=False)
-        
-        # Schedule persistent deletion
-        await database.add_pending_deletion(message.chat.id, message.message_id, config.AUTO_DELETE_MINUTES)
+        if joined or is_admin:
+            # Cooldown check for button clicks
+            if last_search and not is_admin:
+                last_time = datetime.datetime.fromisoformat(last_search) if isinstance(last_search, str) else last_search
+                elapsed = (datetime.datetime.now() - last_time).total_seconds()
+                if elapsed < 600:
+                    return await callback.answer("⏳ Cooldown active. Try again later.", show_alert=True)
+
+            # Hide buttons immediately as requested
+            await callback.message.edit_reply_markup(reply_markup=None)
+            
+            # Perform search
+            await callback.answer(f"🔍 Searching for: {query}")
+            await yt_search(callback.message, query, username)
+            
+            # Start cooldown
+            await database.update_last_search_time(user_id)
+        else:
+            await callback.answer("❌ Please join our channel first!", show_alert=True)
+            await start_cmd(callback.message)
+
+async def yt_search(message: types.Message, query: str, username: str):
+    """Core function to handle YouTube search, logging, and scheduled deletion."""
+    # Show "Searching" status with content protection enabled
+    status_msg = await message.answer("<i>🔍 Searching YouTube...</i>", protect_content=True)
+    
+    url, title = search_youtube(query)
+    
+    if not url:
+        return await status_msg.edit_text("<b>❌ No results found.</b> Try a different query.")
+
+    # Save to Google Sheets
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    sheets_saved = save_to_sheets(now, url, query, username, message.message_id)
+    
+    # Always Log Locally
+    await database.log_search(now, url, query, username, message.message_id)
+    
+    # Prepare result text
+    status_icon = "✅" if sheets_saved else "💾"
+    status_text = "Archived to Sheets" if sheets_saved else "Logged Locally (Auto-Fallback)"
+    
+    result_text = (
+        f"<b>📺 {title}</b>\n\n"
+        f"🔗 <a href='{url}'>Watch Now</a>\n\n"
+        f"📅 <i>Log Status: {status_icon} {status_text}</i>\n"
+        f"⏰ <i>Cleaning up chat history in 10 minutes...</i>"
+    )
+    
+    await status_msg.edit_text(result_text, disable_web_page_preview=False)
+    
+    # Schedule persistent deletion for both messages
+    await database.add_pending_deletion(message.chat.id, message.message_id, config.AUTO_DELETE_MINUTES)
+    await database.add_pending_deletion(message.chat.id, status_msg.message_id, config.AUTO_DELETE_MINUTES)
 
 async def setup_commands():
     """Sets the bot's command menu."""
     commands = [
         BotCommand(command="start", description="Start/Unlock the bot"),
-        BotCommand(command="help", description="How to use"),
-        BotCommand(command="verify", description="Check membership")
+        BotCommand(command="verify", description="Check membership status"),
+        BotCommand(command="help", description="How to use instructions")
     ]
     await bot.set_my_commands(commands)
 
