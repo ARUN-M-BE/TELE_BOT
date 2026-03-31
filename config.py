@@ -1,23 +1,29 @@
 import os
 from dotenv import load_dotenv
 
-# Load environmental variables from .env file
 load_dotenv()
 
-# Telegram Configuration
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-ADMIN_IDS = [int(id.strip()) for id in os.getenv("ADMIN_IDS", "0").split(",") if id.strip()]
-CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/example")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+# Telegram Bot API
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+# Admin User IDs (list)
+ADMIN_IDS = [int(i) for i in os.getenv("ADMIN_IDS", "").split(",") if i]
 
-# YouTube Configuration
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "YOUR_YOUTUBE_API_KEY")
+# Userbot Credentials (for Video Chat)
+# Get these from https://my.telegram.org
+API_ID = int(os.getenv("API_ID", 0))
+API_HASH = os.getenv("API_HASH")
 
-# Google Sheets Configuration
-SHEET_ID = os.getenv('SHEET_ID', 'YOUR_GOOGLE_SHEET_ID')
-SERVICE_ACCOUNT_FILE = os.getenv('SERVICE_ACCOUNT_FILE', 'api-client-398313-e0620396f1f6.json')
-SERVICE_ACCOUNT_JSON = os.getenv('SERVICE_ACCOUNT_JSON') # Entire JSON string for deployment
+# Channel for Membership Check
+CHANNEL_URL = os.getenv("CHANNEL_URL")
+CHANNEL_ID = os.getenv("CHANNEL_ID", "")
 
-# Bot settings
-AUTO_DELETE_MINUTES = 10
+# YouTube & Sheets
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+SHEET_ID = os.getenv("SHEET_ID")
+SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE", "service_account.json")
+SERVICE_ACCOUNT_JSON = os.getenv("SERVICE_ACCOUNT_JSON")
+
+# Project Settings
 DATABASE_NAME = "bot_data.db"
+AUTO_DELETE_MINUTES = 10
+NEWS_CHAT_ID = os.getenv("CHANNEL_ID") # Post daily news here

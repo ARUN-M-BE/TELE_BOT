@@ -4,6 +4,7 @@ import datetime
 
 async def init_db():
     async with aiosqlite.connect(config.DATABASE_NAME) as db:
+        # User & Search Table
         await db.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
@@ -21,14 +22,6 @@ async def init_db():
                 delete_at TIMESTAMP
             )
         ''')
-        # Migration: Check for new columns in users table
-        async with db.execute('PRAGMA table_info(users)') as cursor:
-            columns = [row[1] for row in await cursor.fetchall()]
-            if 'username' not in columns:
-                await db.execute('ALTER TABLE users ADD COLUMN username TEXT')
-            if 'last_search_time' not in columns:
-                await db.execute('ALTER TABLE users ADD COLUMN last_search_time TIMESTAMP')
-
         await db.execute('''
             CREATE TABLE IF NOT EXISTS search_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,8 +32,45 @@ async def init_db():
                 message_id INTEGER
             )
         ''')
-        
-        # Migration: Check for username in search_logs
+
+        # NEW: Group Settings Table
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS group_settings (
+                chat_id INTEGER PRIMARY KEY,
+                rules TEXT,
+                join_hider INTEGER DEFAULT 1,
+                flood_control INTEGER DEFAULT 1,
+                welcome_message TEXT
+            )
+        ''')
+
+        # NEW: Hamster News Cache
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS hamster_news (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT,
+                updated_at TIMESTAMP
+            )
+        ''')
+
+        # NEW: Custom Filters
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS filters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER,
+                keyword TEXT,
+                reply TEXT
+            )
+        ''')
+
+        # Migration logic
+        async with db.execute('PRAGMA table_info(users)') as cursor:
+            columns = [row[1] for row in await cursor.fetchall()]
+            if 'username' not in columns:
+                await db.execute('ALTER TABLE users ADD COLUMN username TEXT')
+            if 'last_search_time' not in columns:
+                await db.execute('ALTER TABLE users ADD COLUMN last_search_time TIMESTAMP')
+
         async with db.execute('PRAGMA table_info(search_logs)') as cursor:
             columns = [row[1] for row in await cursor.fetchall()]
             if 'username' not in columns:
@@ -82,7 +112,6 @@ async def remove_deletion(id: int):
         await db.commit()
 
 async def update_last_search_time(user_id: int):
-    """Updates the last search time for a user."""
     async with aiosqlite.connect(config.DATABASE_NAME) as db:
         await db.execute(
             'UPDATE users SET last_search_time = ? WHERE user_id = ?',
@@ -91,10 +120,31 @@ async def update_last_search_time(user_id: int):
         await db.commit()
 
 async def log_search(date: str, url: str, query: str, username: str, message_id: int):
-    """Logs search results to the local database."""
     async with aiosqlite.connect(config.DATABASE_NAME) as db:
         await db.execute(
             'INSERT INTO search_logs (search_date, url, query, username, message_id) VALUES (?, ?, ?, ?, ?)',
             (date, url, query, username, message_id)
         )
+        await db.commit()
+
+# NEW: Group & News Helpers
+async def get_group_settings(chat_id: int):
+    async with aiosqlite.connect(config.DATABASE_NAME) as db:
+        async with db.execute('SELECT rules, join_hider, flood_control, welcome_message FROM group_settings WHERE chat_id = ?', (chat_id,)) as cursor:
+            return await cursor.fetchone()
+
+async def update_group_rules(chat_id: int, rules: text):
+    async with aiosqlite.connect(config.DATABASE_NAME) as db:
+        await db.execute('INSERT OR REPLACE INTO group_settings (chat_id, rules) VALUES (?, ?)', (chat_id, rules))
+        await db.commit()
+
+async def get_hamster_news():
+    async with aiosqlite.connect(config.DATABASE_NAME) as db:
+        async with db.execute('SELECT content FROM hamster_news ORDER BY updated_at DESC LIMIT 1') as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+async def update_hamster_news(content: str):
+    async with aiosqlite.connect(config.DATABASE_NAME) as db:
+        await db.execute('INSERT INTO hamster_news (content, updated_at) VALUES (?, ?)', (content, datetime.datetime.now()))
         await db.commit()

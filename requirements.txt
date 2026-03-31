@@ -1,7 +1,14 @@
 aiogram
-google-api-python-client
+pyrogram
+pytgcalls
+apscheduler
+yt-dlp
 gspread
 oauth2client
-asyncio
+google-api-python-client
 python-dotenv
 aiosqlite
+requests
+beautifulsoup4
+tonapi
+AniListPython
