@@ -1,18 +1,19 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 import config
 import database
 from services import news_service
-from handlers import group, hamster, crypto, multimedia
+from handlers import group, hamster, crypto, multimedia, search
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize Bot
-bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # Register Handlers
@@ -20,6 +21,7 @@ dp.include_router(group.router)
 dp.include_router(hamster.router)
 dp.include_router(crypto.router)
 dp.include_router(multimedia.router)
+dp.include_router(search.router)
 
 async def on_startup():
     """Logic to run when the bot starts."""

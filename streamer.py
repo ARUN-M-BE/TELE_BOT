@@ -1,5 +1,13 @@
 import os
 import asyncio
+
+# Patch for newer Python versions (3.12+) where pyrogram.sync expects a loop
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+from pyrogram import Client, filters
 try:
     from pytgcalls import PyTgCalls
     from pytgcalls.types import AudioPiped, VideoPiped

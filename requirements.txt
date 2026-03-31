@@ -1,6 +1,5 @@
 aiogram
 pyrogram
-pytgcalls
 apscheduler
 yt-dlp
 gspread
@@ -11,3 +10,4 @@ aiosqlite
 requests
 beautifulsoup4
 AnilistPython
+httpx
