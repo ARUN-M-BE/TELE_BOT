@@ -1,17 +1,39 @@
 from aiogram import Router, types, F
 from aiogram.filters import Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from services.membership_service import check_user_membership
+import config
 import database
 
 router = Router()
 
 @router.message(F.new_chat_members)
 async def on_user_join(message: types.Message):
-    """Automatically deletes 'User Joined' messages (JoinHider)."""
-    # Simply delete the system join message
+    """Greets the user and checks membership immediately."""
+    for user in message.new_chat_members:
+        is_member = await check_user_membership(message.bot, user.id)
+        
+        status_text = "🟢 <b>Verified Member</b>" if is_member else "🔴 <b>Not Verified (Join Channel!)</b>"
+        
+        builder = InlineKeyboardBuilder()
+        if not is_member:
+            builder.button(text="📢 Join Channel", url=config.CHANNEL_URL)
+            builder.button(text="✅ Verify Joining", callback_data="verify_join")
+            builder.adjust(1)
+            
+        welcome_text = (
+            f"👋 <b>Welcome to the Group, {user.full_name}!</b>\n\n"
+            f"Status: {status_text}\n\n"
+            "Please support our community by joining the channel below! 🚀"
+        )
+        
+        await message.answer(welcome_text, reply_markup=builder.as_markup() if not is_member else None)
+        
+    # Optional: Delete the system join message
     try:
         await message.delete()
-    except Exception as e:
-        print(f"JoinHider Error: {e}")
+    except Exception:
+        pass
 
 @router.message(F.left_chat_member)
 async def on_user_leave(message: types.Message):
@@ -20,6 +42,11 @@ async def on_user_leave(message: types.Message):
         await message.delete()
     except Exception as e:
         print(f"JoinHider Error: {e}")
+
+@router.message(Command("hi"))
+async def say_hi(message: types.Message):
+    """Simple greeting command."""
+    await message.answer("👋 Hello! The <b>Hamster Super Bot</b> is active and working in this group! 🚀")
 
 @router.message(Command("rules"))
 async def show_rules(message: types.Message):

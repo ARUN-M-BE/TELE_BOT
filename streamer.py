@@ -1,13 +1,10 @@
 import os
 import asyncio
-
-# Patch for newer Python versions (3.12+) where pyrogram.sync expects a loop
-try:
-    asyncio.get_event_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
+import logging
+import config
 
 from pyrogram import Client, filters
+
 try:
     from pytgcalls import PyTgCalls
     from pytgcalls.types import AudioPiped, VideoPiped
@@ -15,59 +12,69 @@ try:
     HAS_PYTGCALLS = True
 except ImportError:
     HAS_PYTGCALLS = False
-import config
 
-# Initialize Pyrogram Userbot
-# You must provide API_ID and API_HASH from my.telegram.org in your .env
-userbot = Client(
-    "broadcaster",
-    api_id=config.API_ID,
-    api_hash=config.API_HASH
-)
+logger = logging.getLogger("Streamer")
 
-# Initialize PyTgCalls
-if HAS_PYTGCALLS:
-    call_py = PyTgCalls(userbot)
-else:
-    call_py = None
+class Streamer:
+    def __init__(self):
+        self.app = Client(
+            "hamster_userbot",
+            api_id=config.API_ID,
+            api_hash=config.API_HASH,
+            in_memory=False
+        )
+        self.call_py = None
 
-async def start_streaming(chat_id, stream_url, video=True):
-    """Starts streaming video/audio into the specified chat's Voice Chat."""
-    if not HAS_PYTGCALLS:
-        print("❌ Error: pytgcalls is not installed. Video/Audio streaming is disabled.")
-        return False
-    try:
-        if video:
-            stream = VideoPiped(
-                stream_url,
-                AudioPiped(stream_url, StreamAudioQuality.HIGH),
-                StreamVideoQuality.HD_720P
-            )
-        else:
-            stream = AudioPiped(stream_url, StreamAudioQuality.HIGH)
+    async def start(self):
+        """Starts the userbot and the pytgcalls task."""
+        if not config.API_ID or not config.API_HASH:
+            logger.warning("⚠️ Userbot Disabled: API_ID or API_HASH missing in .env")
+            return
+
+        try:
+            logger.info("⏳ Starting Userbot (Streamer) in background...")
+            # We use a non-blocking start. 
+            # If it's the first time, it might still prompt for a phone number in the console.
+            await self.app.start() 
             
-        await call_py.join_group_call(chat_id, stream)
-        return True
-    except Exception as e:
-        print(f"Streaming Error: {e}")
-        return False
+            if HAS_PYTGCALLS:
+                self.call_py = PyTgCalls(self.app)
+                await self.call_py.start()
+                logger.info("✅ Streamer (Userbot) started with Voice Chat support!")
+            else:
+                logger.warning("⚠️ Streamer started without voice chat (pytgcalls missing).")
+        except Exception as e:
+            logger.error(f"❌ Userbot Start Error: {e}")
+            logger.info("💡 Tip: If it's your first time, you may need to log in manually by running 'py login_userbot.py'.")
 
-async def stop_streaming(chat_id):
-    """Stops the current stream."""
-    if not HAS_PYTGCALLS:
-        return False
-    try:
-        await call_py.leave_group_call(chat_id)
-        return True
-    except Exception as e:
-        print(f"Stop Error: {e}")
-        return False
+    async def start_streaming(self, chat_id, stream_url, video=True):
+        """Starts streaming video/audio into the specified chat's Voice Chat."""
+        if not HAS_PYTGCALLS or not self.call_py:
+            logger.error("❌ Error: Streaming is disabled or not initialized.")
+            return False
+        try:
+            if video:
+                stream = VideoPiped(
+                    stream_url,
+                    AudioPiped(stream_url, StreamAudioQuality.HIGH),
+                    StreamVideoQuality.HD_720P
+                )
+            else:
+                stream = AudioPiped(stream_url, StreamAudioQuality.HIGH)
+                
+            await self.call_py.join_group_call(chat_id, stream)
+            return True
+        except Exception as e:
+            logger.error(f"Streaming Error: {e}")
+            return False
 
-# Initialize the Userbot & PyTgCalls client
-async def init_streamer():
-    await userbot.start()
-    if HAS_PYTGCALLS:
-        await call_py.start()
-        print("Streamer (Userbot) is now active and ready to join Video Chats!")
-    else:
-        print("Streamer (Userbot) started without voice chat support (pytgcalls missing).")
+    async def stop_streaming(self, chat_id):
+        """Stops the current stream."""
+        if not self.call_py:
+            return False
+        try:
+            await self.call_py.leave_group_call(chat_id)
+            return True
+        except Exception as e:
+            logger.error(f"Stop Error: {e}")
+            return False

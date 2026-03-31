@@ -6,7 +6,7 @@ from aiogram.filters import Command
 import config
 import database
 from services import news_service
-from handlers import group, hamster, crypto, multimedia, search
+from handlers import group, hamster, crypto, multimedia, search, common
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -19,14 +19,23 @@ dp = Dispatcher()
 # Register Handlers
 dp.include_router(group.router)
 dp.include_router(hamster.router)
-dp.include_router(crypto.router)
-dp.include_router(multimedia.router)
-dp.include_router(search.router)
+dp.include_router(common.router)
+
+# Debug Middleware to see group messages
+@dp.message.outer_middleware()
+async def logger_middleware(handler, event, data):
+    if event.chat.type in ["group", "supergroup"]:
+        print(f"📩 [Group Debug] {event.from_user.full_name}: {event.text or '[Media]'}")
+    return await handler(event, data)
 
 async def on_startup():
     """Logic to run when the bot starts."""
     logger.info("Initializing Database...")
     await database.init_db()
+    
+    # 🔄 Clear Webhook and Drop Pending Updates to avoid Conflicts
+    logger.info("Clearing Webhook and Dropping Pending Updates...")
+    await bot.delete_webhook(drop_pending_updates=True)
     
     # Setup Daily News Scheduler
     if config.CHANNEL_ID:

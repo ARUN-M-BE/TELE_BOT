@@ -1,32 +1,15 @@
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-import config
-import database
+from services.membership_service import check_user_membership
+from handlers.common import get_search_keyboard
 import services.sheets_service as sheets
 from googleapiclient.discovery import build
 import datetime
+import config
+import database
 
 router = Router()
-
-async def check_user_membership(bot, user_id):
-    """Checks if the user is an admin or a member of the mandatory channel."""
-    # 1. Bypass check for Admins
-    if user_id in config.ADMIN_IDS:
-        return True
-        
-    # 2. Skip if no channel configured
-    if not config.CHANNEL_ID or config.CHANNEL_ID == "PASTE_CHANNEL_ID_HERE":
-        return True 
-
-    try:
-        member = await bot.get_chat_member(chat_id=config.CHANNEL_ID, user_id=user_id)
-        if member.status in ["member", "administrator", "creator"]:
-            return True
-        return False
-    except Exception as e:
-        print(f"Membership Check Error: {e}")
-        return False
 
 @router.message(Command("start"))
 async def start_handler(message: types.Message):
@@ -57,30 +40,6 @@ async def start_handler(message: types.Message):
             "Please join our channel first to use this bot's search features.",
             reply_markup=builder.as_markup()
         )
-
-@router.callback_query(F.data == "verify_join")
-async def verify_join_callback(callback: types.CallbackQuery):
-    """Handles the 'Verify Joining' button."""
-    is_member = await check_user_membership(callback.bot, callback.from_user.id)
-    if is_member:
-        await callback.answer("✅ Success! You are now verified.")
-        # Edit message to show search buttons
-        welcome_text = (
-            f"👋 <b>Welcome back, {callback.from_user.full_name}!</b>\n\n"
-            "🟢 <b>Status: Verified Member</b>\n"
-            "Use the search buttons below to find Hamster Kombat updates:"
-        )
-        await callback.message.edit_text(welcome_text, reply_markup=get_search_keyboard())
-    else:
-        await callback.answer("❌ You haven't joined yet. Please join the channel first!", show_alert=True)
-
-def get_search_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🔍 Daily Cipher", callback_data="search_cipher")
-    builder.button(text="🧩 Daily Combo", callback_data="search_combo")
-    builder.button(text="🎮 Mini Game", callback_data="search_minigame")
-    builder.adjust(1)
-    return builder.as_markup()
 
 async def perform_yt_search(query: str):
     """Searches YouTube using the API."""

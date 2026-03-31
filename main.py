@@ -1,6 +1,4 @@
-import asyncio
-import bot
-import streamer
+# No top-level imports of bot or streamer to avoid early event loop initialization issues with Pyrogram
 import logging
 
 # Logging setup
@@ -8,20 +6,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("HamsterSuperBot")
 
 async def main():
-    """Starts both the Bot Client (aiogram) and the Streamer Client (pyrogram + pytgcalls) at once."""
+    """Starts both the Bot Client (aiogram) and the Streamer Client (pyrogram + pytgcalls) together."""
+    import bot # Lazy import
+    import streamer # Lazy import
+    from streamer import Streamer # Lazy import
+
     logger.info("🚀 Starting Unified Hamster Super Bot...")
     
-    # Run bot and streamer in parallel
+    streamer_instance = Streamer()
+
+    # We run both in parallel using gather to ensure they share the same event loop
+    logger.info("Connecting to Telegram Services...")
+    
+    await asyncio.gather(
+        bot.on_startup(), # Initialize DB and Webhook cleanup
+        streamer_instance.start(), # Start Userbot in background
+        bot.dp.start_polling(bot.bot) # Start main polling
+    )
+
+if __name__ == "__main__":
+    import asyncio
     try:
-        # Start the Streamer (Userbot) first
-        await streamer.init_streamer()
-        
-        # Then start the Bot's main loop
-        await bot.dp.start_polling(bot.bot, on_startup=bot.on_startup)
-        
+        # Use run() for the entry point
+        asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("👋 Shutting down Bot...")
-        await streamer.userbot.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
