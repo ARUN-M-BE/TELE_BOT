@@ -133,7 +133,7 @@ async def get_group_settings(chat_id: int):
         async with db.execute('SELECT rules, join_hider, flood_control, welcome_message FROM group_settings WHERE chat_id = ?', (chat_id,)) as cursor:
             return await cursor.fetchone()
 
-async def update_group_rules(chat_id: int, rules: text):
+async def update_group_rules(chat_id: int, rules: str):
     async with aiosqlite.connect(config.DATABASE_NAME) as db:
         await db.execute('INSERT OR REPLACE INTO group_settings (chat_id, rules) VALUES (?, ?)', (chat_id, rules))
         await db.commit()

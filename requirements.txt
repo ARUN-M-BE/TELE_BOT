@@ -10,5 +10,4 @@ python-dotenv
 aiosqlite
 requests
 beautifulsoup4
-tonapi
-AniListPython
+AnilistPython

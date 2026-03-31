@@ -13,6 +13,9 @@ async def play_video(message: types.Message):
     if message.from_user.id not in config.ADMIN_IDS:
         return await message.answer("❌ Error: Access Denied. Only authorized admins can control the stream.")
     
+    if not streamer.HAS_PYTGCALLS:
+        return await message.answer("⚠️ <b>Voice Chat support is disabled.</b>\n\nTo enable streaming, please use <b>Python 3.12 or 3.11</b> instead of 3.14, as the <code>pytgcalls</code> library is not yet compatible with your current version.")
+    
     # Check if a link is provided or use default
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
@@ -29,6 +32,9 @@ async def anime_stream(message: types.Message):
     """Searches for an anime and starts streaming the episode."""
     if message.from_user.id not in config.ADMIN_IDS:
         return await message.answer("❌ Error: Only authorized admins can broadcast anime.")
+    
+    if not streamer.HAS_PYTGCALLS:
+        return await message.answer("⚠️ <b>Anime streaming is disabled.</b>\n\nPlease use <b>Python 3.12 or 3.11</b> to enable voice chat features.")
     
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
