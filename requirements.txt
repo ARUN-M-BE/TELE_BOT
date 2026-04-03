@@ -1,13 +1,9 @@
 aiogram
-pyrogram
 apscheduler
-yt-dlp
 gspread
 oauth2client
 google-api-python-client
 python-dotenv
-aiosqlite
+httpx
 requests
 beautifulsoup4
-AnilistPython
-httpx

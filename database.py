@@ -33,7 +33,7 @@ async def kv_put(key: str, value: any):
 
 async def init_db():
     """No local initialization needed for KV, but we can verify the connection."""
-    print("☁️ Cloudflare KV Database Connected!")
+    print("[DB] Cloudflare KV Database Connected!")
 
 async def set_user_joined(user_id: int, username: str, joined: bool):
     data = {
